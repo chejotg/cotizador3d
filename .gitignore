@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+web/node_modules/
+
+# Build output
+web/dist/
+dist/
+
+# Environment / secrets
+.env
+.env.*
+*.env
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temp
+tmp/
+*.tmp
+
+# Playwright browser (descarga local)
+# ms-playwright/
+
+# Excel binarios (se regeneran con scripts)
+datos/cotizador.xlsx
+datos/catalogo.xlsx
+
+# Supabase local
+supabase/.temp/
+web/tmp*.sql

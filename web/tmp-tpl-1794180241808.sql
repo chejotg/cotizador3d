@@ -1,0 +1,1 @@
+select 'v' k, (select sum(vendidas) from cotizacion_pieza where folio='COT-012') v union all select 'vta', (select folio from venta order by id desc limit 1);
