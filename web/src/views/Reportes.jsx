@@ -87,7 +87,7 @@ export default function Reportes() {
     };
   }, [rows]);
 
-  // Totales solo de PAGADAS
+  // Totales solo de PAGADAS (incluye envío cobrado como passthrough)
   const totalesPagado = useMemo(() => {
     const sum = (fn) => pagadas.reduce((s, r) => s + (Number(fn(r)) || 0), 0);
     return {
@@ -97,6 +97,7 @@ export default function Reportes() {
       ...Object.fromEntries(RUBROS.map(([k]) => [k, sum((r) => r[k])])),
       costo: sum((r) => r.costo_total),
       margen: sum((r) => r.margen_real),
+      envio: sum((r) => r.envio_cobrado),
     };
   }, [pagadas]);
 
