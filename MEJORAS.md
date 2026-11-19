@@ -141,3 +141,12 @@ Registro de errores cometidos y mejoras identificadas, para no repetirlos.
 - **Qu pas:** al vender 2 pack navideos, el RPC `registrar_combo` rechaz la venta diciendo "sin suficiente stock" aunque las piezas tenan 5 disponibles. El RPC calculaba disponibles como `cantidad - vendidas` SIN incluir el `stock_extra` que el usuario haba agregado desde Inventario. La vista `piezas_bandeja` s lo inclua pero los RPCs no.
 - **Por qu:** el clculo de disponibles se implement dos veces (una en la vista para mostrar, otra en los RPCs para validar) y solo la vista tena el `stock_extra`.
 - **Cmo evitarlo:** el clculo de disponibles debe tener UNA sola definicin. Si se agrega una columna nueva (como stock_extra), actualizar TODOS los lugares que la usan, no solo la vista. Verificar siempre con un caso real antes de dar por corregido.
+
+## 2026-11-18 — Card de envío no aparecía en Reportes
+Qué pasó: tras migración 20 edité el memo 	otalesPagado en Reportes.jsx para sumar envíos pero nunca agregué la card al JSX, además usé un campo inexistente (nvio_cobrado en vez de costo_envio). El usuario revisó y no veía nada.
+Por qué: anuncié la funcionalidad como completa sin verificar que el JSX la dibujara.
+Cómo evitarlo: antes de decir 'listo', verificar que cada cálculo nuevo tenga su render visible (buscar el nombre del campo en el JSX completo), y confirmar nombres de columnas contra la vista SQL real.
+
+## 2026-11-18 — Filtros de Reportes no recargaban datos
+Qué pasó: al elegir rango de fechas los totales no cambiaban, y al volver a 'Todo' tampoco se restauraban. Causa: el useEffect usaba dependencias frágiles (filtros?.desde) y un guard 'if (filtros)' que impedía recargar al volver a Todo.
+Cómo evitarlo: depender del objeto memoizado filtros completo en el useEffect (con limpieza de suscripción), y validar filtros de UI con Playwright (script check-reportes-rango.mjs: comparar totales Todo vs rango vs vuelta a Todo).

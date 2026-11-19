@@ -54,28 +54,29 @@ export default function Reportes() {
     return null;
   }, [modo, mesSel, desde, hasta, meses]);
 
-  const cargar = async () => {
-    setCargando(true);
-    try {
-      let query = supabase.from("desglose_ventas").select("*").order("fecha", { ascending: false });
-      if (filtros) query = query.gte("fecha", filtros.desde).lte("fecha", filtros.hasta);
-      const { data, error: err } = await query;
-      if (err) throw err;
-      setRows(data ?? []);
-    } catch (e) {
-      setError(e.message || String(e));
-    } finally {
-      setCargando(false);
-    }
-  };
-
   useEffect(() => {
+    let activo = true;
+    const cargar = async () => {
+      setCargando(true);
+      try {
+        let query = supabase.from("desglose_ventas").select("*").order("fecha", { ascending: false });
+        if (filtros) query = query.gte("fecha", filtros.desde).lte("fecha", filtros.hasta);
+        const { data, error: err } = await query;
+        if (!activo) return;
+        if (err) throw err;
+        setRows(data ?? []);
+        setError("");
+      } catch (e) {
+        if (activo) setError(e.message || String(e));
+      } finally {
+        if (activo) setCargando(false);
+      }
+    };
     cargar();
-  }, []);
-
-  useEffect(() => {
-    if (filtros) cargar();
-  }, [filtros?.desde, filtros?.hasta]);
+    return () => {
+      activo = false;
+    };
+  }, [filtros]);
 
   // Separar por estado de cobro: SOLO pagado cuenta como vendido/ganancia
   const { pagadas, pendientesCobro, promociones } = useMemo(() => {
@@ -97,7 +98,7 @@ export default function Reportes() {
       ...Object.fromEntries(RUBROS.map(([k]) => [k, sum((r) => r[k])])),
       costo: sum((r) => r.costo_total),
       margen: sum((r) => r.margen_real),
-      envio: sum((r) => r.envio_cobrado),
+      envio: sum((r) => r.costo_envio),
     };
   }, [pagadas]);
 
@@ -196,6 +197,12 @@ export default function Reportes() {
             <div className="stat-card"><div className="num">{totalesPagado.ventas}</div><div className="lbl">ventas pagadas</div></div>
             {totalesPagado.iva > 0 && (
               <div className="stat-card"><div className="num">{formatQ(totalesPagado.iva)}</div><div className="lbl">IVA (SAT)</div></div>
+            )}
+            {totalesPagado.envio > 0 && (
+              <div className="stat-card" style={{ border: "1.5px dashed #00838f" }}>
+                <div className="num" style={{ color: "#00838f", fontSize: "1.1rem" }}>{formatQ(totalesPagado.envio)}</div>
+                <div className="lbl" style={{ fontSize: ".72rem" }}>🚚 envío cobrado a clientes (passthrough)</div>
+              </div>
             )}
           </div>
 
