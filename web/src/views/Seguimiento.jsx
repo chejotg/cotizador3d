@@ -3,7 +3,8 @@ import { fetchPedidos, actualizarPedido, eliminarPedido } from "../services/pedi
 import { formatQ } from "../format.js";
 
 const ESTADOS_PEDIDO = ["Nuevo", "Preparando", "Enviado", "Entregado", "Cancelado"];
-const METODOS_ENVIO = ["Entrega en mano", "Guatex", "Cargoocca", "Otro"];
+const ESTADOS_COBRO = ["promocion", "pagado", "pendiente_cobro"];
+const LABEL_COBRO = { promocion: "🎁 Promoción", pagado: "✅ Pagado", pendiente_cobro: "⏳ Pendiente de cobro" };
 const BADGE = {
   Nuevo: "badge-emitida",
   Preparando: "badge-confirmada",
@@ -11,13 +12,18 @@ const BADGE = {
   Entregado: "badge-confirmada",
   Cancelado: "badge-cancelada",
 };
+const BADGE_COBRO = {
+  promocion: "badge-entregada",
+  pagado: "badge-confirmada",
+  pendiente_cobro: "badge-emitida",
+};
 
 export default function Seguimiento() {
   const [pedidos, setPedidos] = useState(null);
   const [filtro, setFiltro] = useState("");
   const [busca, setBusca] = useState("");
   const [error, setError] = useState("");
-  const [modal, setModal] = useState(null); // pedido abierto en modal
+  const [modal, setModal] = useState(null);
 
   const cargar = () => fetchPedidos().then(setPedidos).catch((e) => setError(e.message));
   useEffect(() => {
@@ -35,7 +41,23 @@ export default function Seguimiento() {
     return okE && okQ;
   });
 
-  const pendientes = (pedidos ?? []).filter(
+  // Contadores: solo PAGADO cuenta como total vendido; promoción y pendiente se muestran aparte
+  const totales = (pedidos ?? []).reduce(
+    (acc, p) => {
+      const t = Number(p.total_q) || 0;
+      if (p.estado_cobro === "pagado") {
+        acc.vendido += t;
+      } else if (p.estado_cobro === "promocion") {
+        acc.promocion += t;
+      } else {
+        acc.pendiente += t;
+      }
+      return acc;
+    },
+    { vendido: 0, promocion: 0, pendiente: 0 }
+  );
+  const totalGeneral = totales.vendido + totales.promocion + totales.pendiente;
+  const pendientesCount = (pedidos ?? []).filter(
     (p) => p.estado_pedido !== "Entregado" && p.estado_pedido !== "Cancelado"
   ).length;
 
@@ -63,8 +85,26 @@ export default function Seguimiento() {
     <div>
       {error && <div className="alerta-roja" style={{ marginBottom: "1rem" }}>{error}</div>}
       <div className="stats-fila">
+        <div className="stat-card">
+          <div className="num extra-positivo">{formatQ(totales.vendido)}</div>
+          <div className="lbl">✅ total vendido (pagado)</div>
+        </div>
+        <div className="stat-card">
+          <div className="num" style={{ color: "var(--azul-claro)" }}>{formatQ(totales.pendiente)}</div>
+          <div className="lbl">⏳ pendiente de cobro</div>
+        </div>
+        <div className="stat-card">
+          <div className="num" style={{ color: "var(--morado)" }}>{formatQ(totales.promocion)}</div>
+          <div className="lbl">🎁 promoción</div>
+        </div>
+        <div className="stat-card">
+          <div className="num">{formatQ(totalGeneral)}</div>
+          <div className="lbl">total general (todo)</div>
+        </div>
+      </div>
+      <div className="stats-fila">
         <div className="stat-card"><div className="num">{pedidos?.length ?? "—"}</div><div className="lbl">pedidos totales</div></div>
-        <div className="stat-card"><div className="num">{pendientes}</div><div className="lbl">pendientes</div></div>
+        <div className="stat-card"><div className="num">{pendientesCount}</div><div className="lbl">pendientes de entrega</div></div>
       </div>
       <div style={{ display: "flex", gap: ".6rem", flexWrap: "wrap", marginBottom: ".9rem" }}>
         <input
@@ -93,16 +133,12 @@ export default function Seguimiento() {
           <thead>
             <tr>
               <th>Folio</th><th>Fecha</th><th>Cliente</th><th>Contacto</th><th>Producto</th>
-              <th>TOTAL</th><th>Estado</th><th>Envío</th><th>Tracking</th>
+              <th>TOTAL</th><th>Estado</th><th>Cobro</th><th>Envío</th><th>Tracking</th>
             </tr>
           </thead>
           <tbody>
             {visibles.map((p) => (
-              <tr
-                key={p.folio}
-                style={{ cursor: "pointer" }}
-                onClick={() => setModal(p)}
-              >
+              <tr key={p.folio} style={{ cursor: "pointer" }} onClick={() => setModal(p)}>
                 <td><span className="chip-folio">{p.folio}</span></td>
                 <td style={{ whiteSpace: "nowrap" }}>{p.fecha}</td>
                 <td>
@@ -113,12 +149,13 @@ export default function Seguimiento() {
                 <td>{p.producto} × {p.cantidad}</td>
                 <td><strong>{formatQ(p.total_q)}</strong></td>
                 <td><span className={`badge ${BADGE[p.estado_pedido] || "badge-emitida"}`}>{p.estado_pedido}</span></td>
+                <td><span className={`badge ${BADGE_COBRO[p.estado_cobro] || "badge-emitida"}`}>{LABEL_COBRO[p.estado_cobro]?.split(" ").slice(1).join(" ") || p.estado_cobro}</span></td>
                 <td>{p.metodo_envio || "—"}</td>
                 <td>{p.tracking || "—"}</td>
               </tr>
             ))}
             {pedidos && visibles.length === 0 && (
-              <tr><td colSpan={9} className="muted">Sin pedidos para este filtro.</td></tr>
+              <tr><td colSpan={10} className="muted">Sin pedidos para este filtro.</td></tr>
             )}
           </tbody>
         </table>
@@ -127,15 +164,14 @@ export default function Seguimiento() {
       {/* Tarjetas móvil (solo lectura, click abre modal) */}
       <div className="cards-movil">
         {visibles.map((p) => (
-          <div
-            className="card-cot"
-            key={p.folio}
-            style={{ cursor: "pointer" }}
-            onClick={() => setModal(p)}
-          >
+          <div className="card-cot" key={p.folio} style={{ cursor: "pointer" }} onClick={() => setModal(p)}>
             <div className="titulo">
               <span className="chip-folio">{p.folio}</span>
               <span className={`badge ${BADGE[p.estado_pedido] || "badge-emitida"}`}>{p.estado_pedido}</span>
+            </div>
+            <div className="fila">
+              <span className="muted">Cobro</span>
+              <span className={`badge ${BADGE_COBRO[p.estado_cobro] || "badge-emitida"}`}>{LABEL_COBRO[p.estado_cobro]?.split(" ").slice(1).join(" ") || p.estado_cobro}</span>
             </div>
             <div className="fila"><span className="muted">Cliente</span><strong>{p.cliente}</strong></div>
             {p.cliente_direccion && <div className="fila"><span className="muted">Dirección</span><span>{p.cliente_direccion}</span></div>}
@@ -176,6 +212,7 @@ function PedidoModal({ pedido: p, onClose, onGuardar, onEliminar }) {
     direccion: p.cliente_direccion || "",
     telefono: p.cliente_telefono || "",
     estadoPedido: p.estado_pedido || "Nuevo",
+    estadoCobro: p.estado_cobro || "pendiente_cobro",
     metodoEnvio: p.metodo_envio || "",
     costoEnvio: p.costo_envio != null ? String(p.costo_envio) : "",
     tracking: p.tracking || "",
@@ -245,7 +282,7 @@ function PedidoModal({ pedido: p, onClose, onGuardar, onEliminar }) {
             <input className="input-amarillo" value={form.telefono} onChange={(e) => set("telefono", e.target.value)} />
           </label>
 
-          <h4 style={{ margin: ".3rem 0 .2rem", color: "var(--azul)" }}>Estado y envío</h4>
+          <h4 style={{ margin: ".3rem 0 .2rem", color: "var(--azul)" }}>Estado y cobro</h4>
           <div className="input-dos">
             <label className="input-label">
               Estado del pedido
@@ -256,16 +293,26 @@ function PedidoModal({ pedido: p, onClose, onGuardar, onEliminar }) {
               </select>
             </label>
             <label className="input-label">
-              Método de envío
-              <select className="input-amarillo" value={form.metodoEnvio} onChange={(e) => set("metodoEnvio", e.target.value)}>
-                <option value="">— envío —</option>
-                {METODOS_ENVIO.map((s) => (
-                  <option key={s} value={s}>{s}</option>
+              Estado de cobro
+              <select className="input-amarillo" value={form.estadoCobro} onChange={(e) => set("estadoCobro", e.target.value)}>
+                {ESTADOS_COBRO.map((s) => (
+                  <option key={s} value={s}>{LABEL_COBRO[s]}</option>
                 ))}
               </select>
             </label>
           </div>
+
+          <h4 style={{ margin: ".3rem 0 .2rem", color: "var(--azul)" }}>Envío</h4>
           <div className="input-dos">
+            <label className="input-label">
+              Método de envío
+              <select className="input-amarillo" value={form.metodoEnvio} onChange={(e) => set("metodoEnvio", e.target.value)}>
+                <option value="">— envío —</option>
+                {["Entrega en mano", "Guatex", "Cargoocca", "Otro"].map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </label>
             <label className="input-label">
               Costo de envío (Q)
               <input
@@ -277,11 +324,11 @@ function PedidoModal({ pedido: p, onClose, onGuardar, onEliminar }) {
                 onChange={(e) => set("costoEnvio", e.target.value)}
               />
             </label>
-            <label className="input-label">
-              Tracking
-              <input className="input-amarillo" value={form.tracking} onChange={(e) => set("tracking", e.target.value)} />
-            </label>
           </div>
+          <label className="input-label">
+            Tracking
+            <input className="input-amarillo" value={form.tracking} onChange={(e) => set("tracking", e.target.value)} />
+          </label>
           <label className="input-label">
             Observaciones
             <textarea
@@ -323,4 +370,3 @@ function PedidoModal({ pedido: p, onClose, onGuardar, onEliminar }) {
     </div>
   );
 }
-

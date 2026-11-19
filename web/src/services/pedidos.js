@@ -22,6 +22,7 @@ export async function actualizarPedido(folio, patch) {
   if (patch.cliente !== undefined) args.p_cliente = patch.cliente;
   if (patch.direccion !== undefined) args.p_cliente_direccion = patch.direccion;
   if (patch.telefono !== undefined) args.p_cliente_telefono = patch.telefono;
+  if (patch.estadoCobro !== undefined) args.p_estado_cobro = patch.estadoCobro;
   const { data: row, error } = await supabase.rpc("actualizar_pedido", args);
   if (error) {
     const msg = error.message || "";
